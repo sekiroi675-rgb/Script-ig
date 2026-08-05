@@ -1,21 +1,18 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
-local GuiService = game:GetService("GuiService")
 local TweenService = game:GetService("TweenService")
-local Lighting = game:GetService("Lighting") -- Исправлено: Lighting вместо Camera для Blur
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 if not Drawing then return end
 
-local GuiEnv = (gethui and gethui()) or game:GetService("CoreGui")
+-- Специально для Delta: используем PlayerGui
+local GuiEnv = LocalPlayer:WaitForChild("PlayerGui")
 local Gui = Instance.new("ScreenGui")
 Gui.Name = "AerolaScriptsV9"
-pcall(function()
-    if protectgui then protectgui(Gui)
-    elseif syn and syn.protect_gui then syn.protect_gui(Gui) end
-end)
+Gui.ResetOnSpawn = false
 Gui.Parent = GuiEnv
 
 local Themes = {
@@ -26,12 +23,31 @@ local Themes = {
     Orange = Color3.fromRGB(255, 165, 50)
 }
 
+local FogThemes = {
+    ["Dark Blue"] = Color3.fromRGB(10, 15, 30),
+    ["Black"] = Color3.fromRGB(0, 0, 0),
+    ["Dark Purple"] = Color3.fromRGB(15, 5, 25),
+    ["Blood Red"] = Color3.fromRGB(20, 0, 0)
+}
+
 local Settings = {
     Aim = { On = false, FOV = 100, Team = true, Wall = true, Rainbow = false, Part = "HumanoidRootPart", Smooth = 50 },
     ESP = { On = false, Team = true, Wall = false, Color = Themes.Purple },
-    Vis = { Chams = false, HealthBar = false, Distance = false, Crosshair = false, CrosshairSize = 8, ARStretch = false, Stretch43 = false, NightMode = false },
+    Vis = { Chams = false, HealthBar = false, Distance = false, Crosshair = false, CrosshairSize = 8, ARStretch = false, Stretch43 = false },
     Misc = { Spinbot = false, SpinSpeed = 20 },
+    World = { NightMode = false, FogColor = "Dark Blue", FogEnd = 150 },
     Theme = "Purple"
+}
+
+-- Сохраняем оригинальные настройки освещения
+local OrigLighting = {
+    ClockTime = Lighting.ClockTime,
+    Brightness = Lighting.Brightness,
+    FogEnd = Lighting.FogEnd,
+    FogColor = Lighting.FogColor,
+    FogStart = Lighting.FogStart,
+    GlobalShadows = Lighting.GlobalShadows,
+    ExposureCompensation = Lighting.ExposureCompensation
 }
 
 local UIRefs = { 
@@ -46,20 +62,17 @@ local function ApplyTheme(name)
     Settings.ESP.Color = c
     
     for _, ind in pairs(UIRefs.Indicators) do ind.BackgroundColor3 = c end
-    for _, fill in pairs(UIRefs.Fills) do 
-        fill.BackgroundColor3 = c 
-        if fill.Gradient then fill.Gradient.Color = ColorSequence.new({Color3.new(0,0,0), c}) end
-    end
+    for _, fill in pairs(UIRefs.Fills) do fill.BackgroundColor3 = c end
     for _, val in pairs(UIRefs.Values) do val.TextColor3 = c end
     for _, tog in pairs(UIRefs.Toggles) do tog.Knob.BackgroundColor3 = c end
     if UIRefs.Title then UIRefs.Title.TextColor3 = c end
     if UIRefs.ToggleStroke then UIRefs.ToggleStroke.Color = c end
     
-    local isDark = Settings.Vis.NightMode
-    local bgCol = isDark and Color3.fromRGB(5, 5, 8) or Color3.fromRGB(18, 18, 22)
-    local elemCol = isDark and Color3.fromRGB(12, 12, 16) or Color3.fromRGB(25, 25, 30)
-    local strokeCol = isDark and Color3.fromRGB(20, 20, 25) or Color3.fromRGB(35, 35, 42)
-    local textCol = isDark and Color3.fromRGB(150, 150, 160) or Color3.fromRGB(210, 210, 220)
+    -- Темная тема UI по умолчанию
+    local bgCol = Color3.fromRGB(5, 5, 8)
+    local elemCol = Color3.fromRGB(12, 12, 16)
+    local strokeCol = Color3.fromRGB(20, 20, 25)
+    local textCol = Color3.fromRGB(150, 150, 160)
     
     for _, f in pairs(UIRefs.BgFrames) do f.BackgroundColor3 = bgCol end
     for _, f in pairs(UIRefs.ElemFrames) do f.BackgroundColor3 = elemCol end
@@ -69,7 +82,7 @@ local function ApplyTheme(name)
     for _, tab in pairs(UIRefs.TabButtons) do
         if tab.IsActive then
             tab.Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            tab.Btn.BackgroundColor3 = isDark and Color3.fromRGB(15, 15, 20) or Color3.fromRGB(32, 32, 40)
+            tab.Btn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
         else
             tab.Btn.TextColor3 = textCol
             tab.Btn.BackgroundColor3 = elemCol
@@ -260,6 +273,25 @@ RunService.RenderStepped:Connect(function()
         Camera.FieldOfView = OriginalFOV
     end
 
+    -- Логика Ночного режима для карты
+    if Settings.World.NightMode then
+        Lighting.ClockTime = 0
+        Lighting.Brightness = 1
+        Lighting.FogEnd = Settings.World.FogEnd
+        Lighting.FogStart = 0
+        Lighting.FogColor = FogThemes[Settings.World.FogColor] or Color3.fromRGB(0,0,0)
+        Lighting.GlobalShadows = true
+        Lighting.ExposureCompensation = 0.5
+    else
+        Lighting.ClockTime = OrigLighting.ClockTime
+        Lighting.Brightness = OrigLighting.Brightness
+        Lighting.FogEnd = OrigLighting.FogEnd
+        Lighting.FogColor = OrigLighting.FogColor
+        Lighting.FogStart = OrigLighting.FogStart
+        Lighting.GlobalShadows = OrigLighting.GlobalShadows
+        Lighting.ExposureCompensation = OrigLighting.ExposureCompensation
+    end
+
     if Settings.Misc.Spinbot and LocalPlayer.Character then
         local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -388,13 +420,13 @@ end)
 
 local MenuBlur = Instance.new("BlurEffect")
 MenuBlur.Size = 0
-MenuBlur.Parent = Lighting -- Исправлено
+MenuBlur.Parent = Lighting
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 320, 0, 450)
 Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
-Main.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+Main.BackgroundColor3 = Color3.fromRGB(5, 5, 8) -- Темная тема по умолчанию
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
 Main.Visible = false
@@ -402,13 +434,13 @@ Main.Parent = Gui
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 
 local MainStroke = Instance.new("UIStroke", Main)
-MainStroke.Color = Color3.fromRGB(35, 35, 42)
+MainStroke.Color = Color3.fromRGB(20, 20, 25)
 MainStroke.Thickness = 1
 table.insert(UIRefs.Strokes, MainStroke)
 
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 36)
-TopBar.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+TopBar.BackgroundColor3 = Color3.fromRGB(5, 5, 8)
 TopBar.BorderSizePixel = 0
 TopBar.Parent = Main
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
@@ -464,38 +496,36 @@ TBtnLogo.Parent = ToggleBtn
 Instance.new("UICorner", TBtnLogo).CornerRadius = UDim.new(1, 0)
 table.insert(UIRefs.Indicators, TBtnLogo)
 
-local dragging = false
-local dragInput, dragStart, startPos
+-- Улучшенное перетаскивание для телефона (Mobile-friendly)
+local function MakeDraggable(frame, handle)
+    local drag = false
+    local dragInput, dragStart, startPos
 
-local function setupDrag(frame, handle)
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
+            drag = true
             dragStart = input.Position
             startPos = frame.Position
             dragInput = input
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if input == dragInput and drag then
+            local d = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+
+    UIS.InputEnded:Connect(function(input)
+        if input == dragInput then
+            drag = false
         end
     end)
 end
 
-setupDrag(Main, TopBar)
-setupDrag(ToggleBtn, ToggleBtn)
-
-UIS.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        if dragging == true and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local d = input.Position - dragStart
-            if ToggleBtn.Parent == Gui and math.abs(d.X) > 15 or math.abs(d.Y) > 15 then
-               ToggleBtn.Position = UDim2.new(0, startPos.X.Offset + d.X, 0, startPos.Y.Offset + d.Y)
-            elseif Main.Parent == Gui then
-               Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-            end
-        end
-    end
-end)
+MakeDraggable(Main, TopBar)
+MakeDraggable(ToggleBtn, ToggleBtn)
 
 local isAnimating = false
 local menuOpen = false
@@ -557,7 +587,7 @@ VisFrame.BackgroundTransparency = 1
 VisFrame.BorderSizePixel = 0
 VisFrame.ScrollBarThickness = 0
 VisFrame.Visible = false
-VisFrame.CanvasSize = UDim2.new(0, 0, 0, 460)
+VisFrame.CanvasSize = UDim2.new(0, 0, 0, 580) -- Увеличено для новых настроек
 VisFrame.Parent = Content
 
 local MiscFrame = Instance.new("ScrollingFrame")
@@ -573,7 +603,7 @@ local function MakeTab(name, frame, x, width)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(width, -4, 1, 0)
     b.Position = UDim2.new(x, 2, 0, 0)
-    b.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    b.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     b.BackgroundTransparency = 1
     b.Text = name
     b.TextColor3 = Color3.fromRGB(150, 150, 160)
@@ -612,7 +642,7 @@ local function Toggle(parent, name, getter, setter, y)
     local Frm = Instance.new("Frame")
     Frm.Size = UDim2.new(1, -4, 0, 34)
     Frm.Position = UDim2.new(0, 2, 0, y)
-    Frm.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    Frm.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     Frm.BorderSizePixel = 0
     Frm.Parent = parent
     Instance.new("UICorner", Frm).CornerRadius = UDim.new(0, 6)
@@ -623,7 +653,7 @@ local function Toggle(parent, name, getter, setter, y)
     Lbl.Position = UDim2.new(0, 12, 0, 0)
     Lbl.BackgroundTransparency = 1
     Lbl.Text = name
-    Lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+    Lbl.TextColor3 = Color3.fromRGB(150, 150, 160)
     Lbl.Font = Enum.Font.Gotham
     Lbl.TextSize = 11
     Lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -661,7 +691,7 @@ local function Slider(parent, name, min, max, getter, setter, y)
     local Frm = Instance.new("Frame")
     Frm.Size = UDim2.new(1, -4, 0, 40)
     Frm.Position = UDim2.new(0, 2, 0, y)
-    Frm.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    Frm.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     Frm.BorderSizePixel = 0
     Frm.Parent = parent
     Instance.new("UICorner", Frm).CornerRadius = UDim.new(0, 6)
@@ -672,7 +702,7 @@ local function Slider(parent, name, min, max, getter, setter, y)
     Lbl.Position = UDim2.new(0, 12, 0, 4)
     Lbl.BackgroundTransparency = 1
     Lbl.Text = name
-    Lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+    Lbl.TextColor3 = Color3.fromRGB(150, 150, 160)
     Lbl.Font = Enum.Font.Gotham
     Lbl.TextSize = 11
     Lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -707,11 +737,6 @@ local function Slider(parent, name, min, max, getter, setter, y)
     Fill.BorderSizePixel = 0
     Fill.Parent = Bar
     Instance.new("UICorner", Fill).CornerRadius = UDim.new(1, 0)
-    
-    local Grad = Instance.new("UIGradient", Fill)
-    Grad.Color = ColorSequence.new({Color3.fromRGB(255,255,255), Themes[Settings.Theme]})
-    Grad.Rotation = 90
-    Fill.Gradient = Grad
     table.insert(UIRefs.Fills, Fill)
 
     local drag = false
@@ -741,7 +766,7 @@ local function Cycle(parent, name, options, getter, setter, y)
     local Frm = Instance.new("Frame")
     Frm.Size = UDim2.new(1, -4, 0, 34)
     Frm.Position = UDim2.new(0, 2, 0, y)
-    Frm.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    Frm.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     Frm.BorderSizePixel = 0
     Frm.Parent = parent
     Instance.new("UICorner", Frm).CornerRadius = UDim.new(0, 6)
@@ -752,7 +777,7 @@ local function Cycle(parent, name, options, getter, setter, y)
     Lbl.Position = UDim2.new(0, 12, 0, 0)
     Lbl.BackgroundTransparency = 1
     Lbl.Text = name
-    Lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+    Lbl.TextColor3 = Color3.fromRGB(150, 150, 160)
     Lbl.Font = Enum.Font.Gotham
     Lbl.TextSize = 11
     Lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -800,8 +825,13 @@ Toggle(VisFrame, "Crosshair", function() return Settings.Vis.Crosshair end, func
 Slider(VisFrame, "Crosshair Size", 3, 30, function() return Settings.Vis.CrosshairSize end, function(v) Settings.Vis.CrosshairSize = v end, 280)
 Toggle(VisFrame, "AR Stretch (Wide)", function() return Settings.Vis.ARStretch end, function(v) Settings.Vis.ARStretch = v; SetARStretch(v) end, 330)
 Toggle(VisFrame, "4:3 Stretch (CS2)", function() return Settings.Vis.Stretch43 end, function(v) Settings.Vis.Stretch43 = v end, 370)
-Toggle(VisFrame, "Night Mode", function() return Settings.Vis.NightMode end, function(v) Settings.Vis.NightMode = v; ApplyTheme(Settings.Theme) end, 410)
-Cycle(VisFrame, "Theme", {"Purple", "Red", "Blue", "Green", "Orange"}, function() return Settings.Theme end, function(v) ApplyTheme(v) end, 450)
+
+-- Настройки Ночного режима карты
+Toggle(VisFrame, "World Night Mode", function() return Settings.World.NightMode end, function(v) Settings.World.NightMode = v end, 410)
+Cycle(VisFrame, "Fog Color", {"Dark Blue", "Black", "Dark Purple", "Blood Red"}, function() return Settings.World.FogColor end, function(v) Settings.World.FogColor = v end, 450)
+Slider(VisFrame, "Fog Distance", 10, 500, function() return Settings.World.FogEnd end, function(v) Settings.World.FogEnd = v end, 490)
+
+Cycle(VisFrame, "Theme", {"Purple", "Red", "Blue", "Green", "Orange"}, function() return Settings.Theme end, function(v) ApplyTheme(v) end, 540)
 
 Toggle(MiscFrame, "Spinbot", function() return Settings.Misc.Spinbot end, function(v) Settings.Misc.Spinbot = v end, 0)
 Slider(MiscFrame, "Spin Speed", 1, 100, function() return Settings.Misc.SpinSpeed end, function(v) Settings.Misc.SpinSpeed = v end, 40)
@@ -809,7 +839,7 @@ Slider(MiscFrame, "Spin Speed", 1, 100, function() return Settings.Misc.SpinSpee
 ApplyTheme("Purple")
 
 -- ========================================== --
--- INJECT SCREEN (FATALITY / NEVERLOSE STYLE)
+-- INJECT SCREEN
 -- ========================================== --
 
 local function ShowInjectScreen(onComplete)
@@ -826,7 +856,7 @@ local function ShowInjectScreen(onComplete)
     
     local InjBlur = Instance.new("BlurEffect")
     InjBlur.Size = 0
-    InjBlur.Parent = Lighting -- Исправлено
+    InjBlur.Parent = Lighting
 
     local Bg = Instance.new("Frame")
     Bg.Size = UDim2.new(0, 360, 0, 180)
@@ -859,7 +889,7 @@ local function ShowInjectScreen(onComplete)
     Console.Position = UDim2.new(0, 14, 0, 44)
     Console.BackgroundTransparency = 1
     Console.Text = ""
-    Console.RichText = true
+    Console.RichText = false
     Console.TextColor3 = Color3.fromRGB(150, 150, 160)
     Console.Font = Enum.Font.Code
     Console.TextSize = 12
@@ -884,10 +914,6 @@ local function ShowInjectScreen(onComplete)
     BarFill.BackgroundTransparency = 1
     BarFill.Parent = BarBg
     Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
-    
-    local BarGrad = Instance.new("UIGradient", BarFill)
-    BarGrad.Color = ColorSequence.new({Themes.Purple, Color3.fromRGB(255, 255, 255)})
-    BarGrad.Rotation = 0
 
     task.spawn(function()
         TweenService:Create(InjBlur, TweenInfo.new(0.5), {Size = 24}):Play()
@@ -900,12 +926,12 @@ local function ShowInjectScreen(onComplete)
         TweenService:Create(BarFill, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
         
         local messages = {
-            "<font color='#8F5FFF'>[sys]</font> Initializing modules...",
-            "<font color='#8F5FFF'>[sys]</font> Bypassing anti-cheat...",
-            "<font color='#8F5FFF'>[sys]</font> Loading visuals...",
-            "<font color='#8F5FFF'>[sys]</font> Hooking functions...",
-            "<font color='#8F5FFF'>[ok]</font>  Build: 9.0.4",
-            "<font color='#8F5FFF'>[ok]</font>  Success!"
+            "[sys] Initializing modules...",
+            "[sys] Bypassing anti-cheat...",
+            "[sys] Loading visuals...",
+            "[sys] Hooking functions...",
+            "[ok]  Build: 9.0.4",
+            "[ok]  Success!"
         }
 
         local progress = 0
@@ -913,7 +939,6 @@ local function ShowInjectScreen(onComplete)
             Console.Text = Console.Text .. msg .. "\n"
             progress = i / #messages
             TweenService:Create(BarFill, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.new(progress, 0, 1, 0)}):Play()
-            TweenService:Create(BarGrad, TweenInfo.new(0.2), {Offset = Vector2.new(1, 0)}):Play()
             task.wait(0.2)
         end
         
